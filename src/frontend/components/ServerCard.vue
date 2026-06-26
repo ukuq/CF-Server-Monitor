@@ -62,6 +62,10 @@
         <span class="net-down">▼ {{ totalRx }}</span>
         <span class="net-up">▲ {{ totalTx }}</span>
       </div>
+      <div class="stat-row stat-time-row">
+        <span class="stat-key">TIME</span>
+        <span class="stat-time-value">{{ dataTimeText }}</span>
+      </div>
     </div>
     <div class="ping-panel">
       <div class="ping-item">
@@ -163,6 +167,30 @@ const netInSpeed = computed(() => formatBytes(props.server.net_in_speed))
 const netOutSpeed = computed(() => formatBytes(props.server.net_out_speed))
 const totalRx = computed(() => formatBytes(props.server.net_rx))
 const totalTx = computed(() => formatBytes(props.server.net_tx))
+
+const normalizeTimestamp = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric < 10000000000 ? numeric * 1000 : numeric
+  }
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+const formatDateTime = (timestamp) => {
+  if (!timestamp) return '-'
+  const date = new Date(timestamp)
+  const pad = (num) => String(num).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+const dataTimeText = computed(() => {
+  const timestamp = normalizeTimestamp(
+    props.server.sample_timestamp ?? props.server.timestamp ?? props.server.last_updated
+  )
+  return formatDateTime(timestamp)
+})
 
 const isExpired = computed(() => {
   const expTime = new Date(props.server.expire_date).getTime()

@@ -905,6 +905,21 @@ body::before {
     color: var(--accent-blue);
 }
 
+.stat-time-row {
+    margin-top: -1px;
+    margin-bottom: 0;
+}
+
+.stat-time-value {
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+
 /* --------------------------------------------------------------------------
    14. Ping Panel
    -------------------------------------------------------------------------- */
