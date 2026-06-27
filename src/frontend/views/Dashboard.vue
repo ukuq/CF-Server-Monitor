@@ -320,32 +320,148 @@ const getTrafficUsagePercent = (server) => {
   return percent.toFixed(1)
 }
 
-// 用最新数据增量更新单台服务器信息
-// 无论后端 last_updated 是否变化，都用前端收到推送的时间更新 last_updated，
-// 保证实时时间列（"xx:xx:xx ago"）在每次推送时都刷新。
-const mergeServerUpdate = (serverId, data) => {
-  if (!serverId || !data) return false
-  const idx = servers.value.findIndex(s => s.id === serverId)
-  if (idx >= 0) {
-    // 已有服务器：合并字段，同时更新 last_updated 为前端收到时间
-    servers.value[idx] = { ...servers.value[idx], ...data, last_updated: Date.now() }
-  } else {
-    // 新服务器：加入列表
-    servers.value.push({ ...data, name: serverId, last_updated: Date.now() })
+const PLAYBACK_TICK_MS = 1000
+const MAX_BUFFER_SAMPLES_PER_SERVER = 600
+const playbackBuffers = new Map()
+let playbackCursorTs = null
+
+const normalizeMetricTimestamp = (value, fallback = null) => {
+  const ts = Number(value)
+  if (Number.isFinite(ts) && ts > 0) {
+    return ts < 10000000000 ? ts * 1000 : ts
   }
-  return true
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
-const recomputeStats = () => {
+const getServerSampleTimestamp = (server) => {
+  return normalizeMetricTimestamp(server?.sample_timestamp ?? server?.timestamp ?? server?.last_updated, null)
+}
+
+const withDisplayTiming = (server, displayTs = Date.now()) => {
+  const sampleTs = getServerSampleTimestamp(server) || displayTs
+  return {
+    ...server,
+    sample_timestamp: sampleTs,
+    display_timestamp: displayTs,
+    sample_lag_seconds: Math.max(0, Math.floor((displayTs - sampleTs) / 1000))
+  }
+}
+
+const getEarliestPendingTimestamp = () => {
+  let minTs = null
+  for (const samples of playbackBuffers.values()) {
+    if (samples.length === 0) continue
+    const ts = samples[0].ts
+    if (minTs === null || ts < minTs) minTs = ts
+  }
+  return minTs
+}
+
+const hasPendingSamples = () => {
+  for (const samples of playbackBuffers.values()) {
+    if (samples.length > 0) return true
+  }
+  return false
+}
+
+const queueLiveSample = (serverId, data, timestamp) => {
+  if (!serverId || !data) return
+  const ts = normalizeMetricTimestamp(timestamp ?? data.sample_timestamp ?? data.last_updated ?? data.timestamp, null)
+  if (!ts) return
+  const current = servers.value.find(s => s.id === serverId)
+  const currentTs = getServerSampleTimestamp(current)
+  if (currentTs && ts <= currentTs) return
+
+  const samples = playbackBuffers.get(serverId) || []
+  if (samples.some(sample => sample.ts === ts)) return
+  samples.push({ serverId, ts, data })
+  samples.sort((a, b) => a.ts - b.ts)
+  playbackBuffers.set(serverId, samples.slice(-MAX_BUFFER_SAMPLES_PER_SERVER))
+}
+
+const queueLiveMessage = (msg) => {
+  if (!msg || (msg.type !== 'update' && msg.type !== 'batchUpdate')) return
+
+  const updates = Array.isArray(msg.updates)
+    ? msg.updates
+    : (msg.serverId ? [{ serverId: msg.serverId, samples: msg.samples, data: msg.data, payload: msg.payload, ts: msg.ts }] : [])
+
+  for (const update of updates) {
+    if (!update || !update.serverId) continue
+    const samples = Array.isArray(update.samples)
+      ? update.samples
+      : (update.payload || update.data ? [{ ts: update.ts || msg.ts, data: update.data || update.payload }] : [])
+
+    for (const sample of samples) {
+      if (!sample || typeof sample !== 'object') continue
+      const data = sample.data || sample.payload || sample.metrics
+      if (!data) continue
+      queueLiveSample(update.serverId, data, sample.ts ?? sample.timestamp ?? data.last_updated ?? update.ts ?? msg.ts)
+    }
+  }
+}
+
+const applyServerSample = (serverId, data, sampleTs, displayTs) => {
+  if (!serverId || !data) return
+  const idx = servers.value.findIndex(s => s.id === serverId)
+  const wallTs = now.value
+  const merged = withDisplayTiming({
+    ...data,
+    id: serverId,
+    sample_timestamp: sampleTs,
+    last_updated: wallTs,
+    timestamp: wallTs
+  }, displayTs)
+
+  if (idx >= 0) {
+    servers.value[idx] = { ...servers.value[idx], ...merged }
+  } else {
+    servers.value.push({ ...merged, name: serverId })
+  }
+}
+
+const applyPlaybackSamples = (displayTs) => {
+  for (const [serverId, samples] of playbackBuffers) {
+    let selected = null
+    while (samples.length > 0 && samples[0].ts <= displayTs) {
+      selected = samples.shift()
+    }
+    if (selected) {
+      applyServerSample(serverId, selected.data, selected.ts, displayTs)
+    }
+    if (samples.length === 0) playbackBuffers.delete(serverId)
+  }
+}
+
+const updateDisplayLag = (displayTs) => {
+  servers.value = servers.value.map(server => withDisplayTiming(server, displayTs))
+}
+
+const advancePlaybackClock = () => {
+  if (playbackCursorTs === null) {
+    playbackCursorTs = getEarliestPendingTimestamp()
+  } else if (hasPendingSamples()) {
+    playbackCursorTs += PLAYBACK_TICK_MS
+  }
+
+  const displayTs = playbackCursorTs || now.value
+  if (playbackCursorTs !== null) {
+    applyPlaybackSamples(displayTs)
+    if (!hasPendingSamples()) playbackCursorTs = null
+  }
+  updateDisplayLag(displayTs)
+}
+
+const recomputeStats = (currentTs = Date.now()) => {
   const list = servers.value || []
-  const now = Date.now()
   let online = 0
   let speedIn = 0, speedOut = 0, netRx = 0, netTx = 0
   const regionCounts = {}
   let unknownCount = 0
   for (const s of list) {
     const ts = new Date(s.last_updated || 0).getTime()
-    const isOnline = ts && (now - ts) < TIME.ONLINE_THRESHOLD_MS
+    const isOnline = ts && (currentTs - ts) < TIME.ONLINE_THRESHOLD_MS
     if (isOnline) {
       online++
       speedIn += parseFloat(s.net_in_speed) || 0
@@ -373,6 +489,13 @@ const recomputeStats = () => {
   unknownStats.value = unknownCount
 }
 
+const runDashboardTick = () => {
+  now.value = Date.now()
+  advancePlaybackClock()
+  recomputeStats(now.value)
+  if (currentView.value === 'map') drawMarkers()
+}
+
 const refreshData = async () => {
   try {
     const bases = getApiBases()
@@ -386,24 +509,12 @@ const refreshData = async () => {
     const existingById = new Map(servers.value.map(s => [s.id, s]))
     const nextList = rawServers.map(s => {
       const prev = existingById.get(s.id)
-      return { ...prev, ...s }
+      const sampleTs = normalizeMetricTimestamp(s.sample_timestamp ?? s.timestamp ?? s.last_updated, getServerSampleTimestamp(prev))
+      return withDisplayTiming({ ...prev, ...s, sample_timestamp: sampleTs }, now.value)
     })
     servers.value = nextList
 
-    if (data.stats) stats.value = data.stats
-    if (data.regionStats) {
-      const cleaned = {}
-      for (const code in data.regionStats) {
-        if (code.toLowerCase() === 'xx') continue
-        cleaned[code] = data.regionStats[code]
-      }
-      regionStats.value = cleaned
-    }
-    let unknownCount = 0
-    for (const s of servers.value) {
-      if (!s.region) unknownCount++
-    }
-    unknownStats.value = unknownCount
+    recomputeStats(now.value)
 
     sysConfig.value = {
       show_price: data.sysConfig?.show_price ?? true,
@@ -431,20 +542,14 @@ let refreshInterval = null
 let themeObserver = null
 let timeUpdateInterval = null
 
-const applyLiveUpdate = ({ serverId, data }) => {
-  if (!data || !serverId) return
-  mergeServerUpdate(serverId, data)
-  recomputeStats()
-  if (currentView.value === 'map') drawMarkers()
-}
-
 const startLiveSocket = () => {
   const bases = getApiBases()
 
   // 如果没有配置多个 API bases，使用原来的单连接方式
   if (bases.length === 0) {
     liveSockets = [createLiveSocket('all', {
-      onUpdate: applyLiveUpdate,
+      replay: false,
+      onMessage: queueLiveMessage,
       onStatus: ({ connected }) => {
         liveConnected.value = !!connected
         if (connected) {
@@ -460,7 +565,8 @@ const startLiveSocket = () => {
   // 为每个 API base 创建独立的 WebSocket 连接
   liveSockets = bases.map((_, index) => {
     return createLiveSocket('all', {
-      onUpdate: applyLiveUpdate,
+      replay: false,
+      onMessage: queueLiveMessage,
       onStatus: ({ connected }) => {
         // 只要有一个连接成功，就认为实时推送可用
         const anyConnected = liveSockets.some(s => s && s.isConnected)
@@ -615,9 +721,8 @@ onMounted(() => {
   startLiveSocket()
 
   // 每秒更新 now 变量，使相对时间实时刷新
-  timeUpdateInterval = setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
+  runDashboardTick()
+  timeUpdateInterval = setInterval(runDashboardTick, 1000)
 
   if (savedView === 'map') {
     switchView('map')

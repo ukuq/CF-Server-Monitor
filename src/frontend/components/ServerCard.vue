@@ -117,13 +117,19 @@ const props = defineProps({
 
 const trans = computed(() => translations[currentLang.value] || translations.en)
 
-const now = Date.now()
+const currentTime = computed(() => {
+  const ts = Number(props.server.display_timestamp)
+  if (Number.isFinite(ts) && ts > 0) {
+    return ts < 10000000000 ? ts * 1000 : ts
+  }
+  return Date.now()
+})
 
 const regionCode = computed(() => getFlagRegionCode(props.server.region))
 
 const isOnline = computed(() => {
   const lastUpdated = new Date(props.server.last_updated).getTime()
-  return (now - lastUpdated) < TIME.ONLINE_THRESHOLD_MS
+  return (currentTime.value - lastUpdated) < TIME.ONLINE_THRESHOLD_MS
 })
 
 const statusColor = computed(() => isOnline.value ? 'var(--accent-green)' : 'var(--accent-red)')
@@ -189,18 +195,19 @@ const dataTimeText = computed(() => {
   const timestamp = normalizeTimestamp(
     props.server.sample_timestamp ?? props.server.timestamp ?? props.server.last_updated
   )
-  return formatDateTime(timestamp)
+  const lagSeconds = parseInt(props.server.sample_lag_seconds) || 0
+  return `${formatDateTime(timestamp)}${lagSeconds > 0 ? ` (+${lagSeconds}s)` : ''}`
 })
 
 const isExpired = computed(() => {
   const expTime = new Date(props.server.expire_date).getTime()
-  return !isNaN(expTime) && expTime < now
+  return !isNaN(expTime) && expTime < currentTime.value
 })
 
 const expireText = computed(() => {
   const expTime = new Date(props.server.expire_date).getTime()
   if (isNaN(expTime)) return ''
-  const diff = expTime - now
+  const diff = expTime - currentTime.value
   const days = Math.ceil(diff / (1000 * 3600 * 24))
   return days > 0 ? `${days}${trans.value.expireDays}` : trans.value.expired
 })

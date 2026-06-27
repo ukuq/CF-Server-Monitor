@@ -8,6 +8,7 @@ export const VERSION = ref('')
 
 export const createLiveSocket = (subscribe, handlers = {}, apiIndex = 0) => {
   const { onUpdate, onStatus, onMessage } = handlers
+  const shouldReplay = handlers.replay !== false
   const scope = (subscribe || 'all').toLowerCase()
   let ws = null
   let manualClose = false
@@ -52,14 +53,15 @@ export const createLiveSocket = (subscribe, handlers = {}, apiIndex = 0) => {
     return ts < 10000000000 ? ts * 1000 : ts
   }
 
-  const emitUpdate = ({ serverId, data }) => {
+  const emitUpdate = ({ serverId, data, ts }) => {
     if (serverId && data && typeof onUpdate === 'function') {
       const receiveTs = Date.now()
+      const sampleTs = normalizeReplayTimestamp(ts || data.sample_timestamp || data.last_updated || data.timestamp, receiveTs)
       onUpdate({
         serverId,
         data: {
           ...data,
-          sample_timestamp: data.last_updated || data.timestamp || null,
+          sample_timestamp: sampleTs,
           last_updated: receiveTs,
           timestamp: receiveTs
         }
@@ -137,10 +139,10 @@ export const createLiveSocket = (subscribe, handlers = {}, apiIndex = 0) => {
       } catch (_) { return }
       if (!msg) return
 
-      if (msg.type === 'update') {
-        emitUpdate({ serverId: msg.serverId, data: msg.data })
+      if (shouldReplay && msg.type === 'update') {
+        emitUpdate({ serverId: msg.serverId, data: msg.data, ts: msg.ts || msg.data?.last_updated })
       }
-      if (msg.type === 'batchUpdate') {
+      if (shouldReplay && msg.type === 'batchUpdate') {
         replayBatch(msg)
       }
       if (typeof onMessage === 'function') onMessage(msg)
