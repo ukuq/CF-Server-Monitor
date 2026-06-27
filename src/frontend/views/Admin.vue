@@ -94,9 +94,19 @@
         </div>
 
         <div id="tab-servers" class="tab-content" :class="{ active: activeTab === 'servers' }">
-          <div class="alert alert-info">
-            <span class="alert-icon">[i]</span>
-            <span>{{ trans.clickToCopy }} <strong>📋</strong> {{ trans.installCommand }}。{{ trans.interval }}</span>
+          <div class="alert alert-info alert-stack">
+            <div class="alert-line">
+              <span class="alert-icon">[i]</span>
+              <span>{{ trans.clickToCopy }} <strong>📋</strong> {{ trans.installCommand }}</span>
+            </div>
+            <div class="alert-line">
+              <span class="alert-icon">[i]</span>
+              <span>{{ trans.interval }}</span>
+            </div>
+            <div class="alert-line">
+              <span class="alert-icon">[i]</span>
+              <span>{{ trans.collectIntervalHint }}</span>
+            </div>
           </div>
 
           <div class="toolbar">

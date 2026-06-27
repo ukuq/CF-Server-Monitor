@@ -1256,6 +1256,17 @@ body::before {
     gap: 8px;
 }
 
+.alert-stack {
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.alert-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .alert-info {
     background: rgba(57, 210, 192, 0.05);
     border-color: rgba(57, 210, 192, 0.2);
