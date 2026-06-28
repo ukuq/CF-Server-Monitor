@@ -62,7 +62,7 @@
         <span class="net-down">▼ {{ totalRx }}</span>
         <span class="net-up">▲ {{ totalTx }}</span>
       </div>
-      <div class="stat-row stat-time-row">
+      <div v-if="sysConfig.show_time" class="stat-row stat-time-row">
         <span class="stat-key">TIME</span>
         <span class="stat-time-value">{{ dataTimeText }}</span>
       </div>
@@ -106,7 +106,8 @@ const props = defineProps({
       show_price: true,
       show_expire: true,
       show_bw: true,
-      show_tf: true
+      show_tf: true,
+      show_time: true
     })
   },
   to: {

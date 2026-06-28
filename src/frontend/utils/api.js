@@ -242,6 +242,7 @@ export const fetchServersAll = async () => {
       show_expire: true,
       show_bw: true,
       show_tf: true,
+      show_time: true,
       site_title: 'Server Monitor'
     }
   }
@@ -279,6 +280,7 @@ export const fetchServersAll = async () => {
         show_expire: data.sysConfig.show_expire ?? mergedData.sysConfig.show_expire,
         show_bw: data.sysConfig.show_bw ?? mergedData.sysConfig.show_bw,
         show_tf: data.sysConfig.show_tf ?? mergedData.sysConfig.show_tf,
+        show_time: data.sysConfig.show_time ?? mergedData.sysConfig.show_time,
         site_title: data.sysConfig.site_title || mergedData.sysConfig.site_title
       }
     }

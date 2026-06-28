@@ -327,6 +327,7 @@ export async function cleanupStaleSettings(db) {
       'show_expire',
       'show_bw',
       'show_tf',
+      'show_time',
       'show_long_history',
       'tg_notify',
       'tg_bot_token',

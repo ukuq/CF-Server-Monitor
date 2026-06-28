@@ -57,6 +57,7 @@ print_usage() {
     echo ""
     echo "可选参数:"
     echo "  -interval=N    上报间隔(秒)，默认60"
+    echo "  -collect_interval=N    采样间隔(秒)，默认0"
     echo "  -ping=TYPE     探测类型: http | tcp，默认http"
     echo "  -ct=HOST       自定义CT测试节点"
     echo "  -cu=HOST       自定义CU测试节点"
@@ -189,13 +190,6 @@ extract_old_params() {
             OLD_SERVER_ID=$(printf '%s' "$OLD_SERVER_ID" | sed 's/^"//; s/"$//')
             OLD_SECRET=$(printf '%s' "$OLD_SECRET" | sed 's/^"//; s/"$//')
             OLD_WORKER_URL=$(printf '%s' "$OLD_WORKER_URL" | sed 's/^"//; s/"$//')
-            
-            echo "提取的参数:"
-            echo "  SERVER_ID: '$OLD_SERVER_ID'"
-            echo "  SECRET: '$OLD_SECRET'"
-            echo "  WORKER_URL: '$OLD_WORKER_URL'"
-            echo "  INTERVAL: '$OLD_REPORT_INTERVAL'"
-            echo "  PING_TYPE: '$OLD_PING_TYPE'"
             
             if [ -n "${OLD_SERVER_ID}" ] && [ -n "${OLD_SECRET}" ] && [ -n "${OLD_WORKER_URL}" ]; then
                 info "已从旧版本服务文件提取参数"
@@ -1098,6 +1092,7 @@ EOF
     printf  '    ● Secret      : %s\n' "${SECRET}"
     printf  '    ● Worker URL  : %s\n' "${WORKER_URL}"
     printf  '    ● 上报间隔    : %s秒\n' "${REPORT_INTERVAL}"
+    printf  '    ● 采样间隔    : %s秒\n' "${COLLECT_INTERVAL}"
     printf  '    ● 探测类型    : %s\n' "${PING_TYPE}"
     [ -n "${RX_CORRECTION}" ] && printf  '    ● 下行校正    : %sGB\n' "${RX_CORRECTION}"
     [ -n "${TX_CORRECTION}" ] && printf  '    ● 上行校正    : %sGB\n' "${TX_CORRECTION}"

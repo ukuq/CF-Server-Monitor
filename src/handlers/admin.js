@@ -108,8 +108,8 @@ async function fetchCloudflareUsage(token, accountId, range) {
 }
 
 async function getD1DailyUsage(token, accountId) {
-  if (!token) throw new Error('请先配置 Cloudflare Token');
-  if (!accountId) throw new Error('请先配置 Cloudflare 用户 ID / Account ID');
+  if (!token) throw new Error('cloudflareTokenRequired');
+  if (!accountId) throw new Error('cloudflareAccountIdRequired');
 
   const todayRange = getUtcTodayRange();
   const last24Range = getLast24HoursRange();
@@ -121,29 +121,14 @@ async function getD1DailyUsage(token, accountId) {
 
   return {
     today: {
-      date: todayRange.date,
       rowsRead: todayUsage.rowsRead,
       rowsWritten: todayUsage.rowsWritten,
-      readLimit: D1_DAILY_READ_LIMIT,
-      writeLimit: D1_DAILY_WRITE_LIMIT,
-      readRemaining: Math.max(D1_DAILY_READ_LIMIT - todayUsage.rowsRead, 0),
-      writeRemaining: Math.max(D1_DAILY_WRITE_LIMIT - todayUsage.rowsWritten, 0),
-      workersRequests: todayUsage.workersRequests,
-      workersRequestLimit: WORKERS_DAILY_REQUEST_LIMIT,
-      workersRequestRemaining: Math.max(WORKERS_DAILY_REQUEST_LIMIT - todayUsage.workersRequests, 0),
-      databaseCount: todayUsage.databaseCount,
-      accountId
+      workersRequests: todayUsage.workersRequests
     },
     last24Hours: {
-      date: last24Range.date,
       rowsRead: last24Usage.rowsRead,
       rowsWritten: last24Usage.rowsWritten,
-      readLimit: D1_DAILY_READ_LIMIT,
-      writeLimit: D1_DAILY_WRITE_LIMIT,
-      workersRequests: last24Usage.workersRequests,
-      workersRequestLimit: WORKERS_DAILY_REQUEST_LIMIT,
-      databaseCount: last24Usage.databaseCount,
-      accountId
+      workersRequests: last24Usage.workersRequests
     }
   };
 }
@@ -309,7 +294,7 @@ export async function handleAdminAPI(request, env, sys) {
       }
 
       const APPEARANCE_FIELDS = ['site_title', 'custom_bg', 'custom_head', 'custom_script'];
-      const SITE_FIELDS = ['is_public', 'show_price', 'show_expire', 'show_bw', 'show_tf', 'show_long_history', 'tg_notify', 'tg_bot_token', 'tg_chat_id', 'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'jwt_secret', 'username', 'password', 'cloudflare_account_id', 'cloudflare_token', 'custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'cleanup_skip_count', 'expire_reminder'];
+      const SITE_FIELDS = ['is_public', 'show_price', 'show_expire', 'show_bw', 'show_tf', 'show_time', 'show_long_history', 'tg_notify', 'tg_bot_token', 'tg_chat_id', 'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'jwt_secret', 'username', 'password', 'cloudflare_account_id', 'cloudflare_token', 'custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'cleanup_skip_count', 'expire_reminder'];
 
       const appearanceOptions = {};
       for (const field of APPEARANCE_FIELDS) {
@@ -343,7 +328,7 @@ export async function handleAdminAPI(request, env, sys) {
     else if (data.action === 'add') {
       const name = data.name || 'New Server';
       if (!isValidName(name)) {
-        return createBadRequestResponse('服务器名称无效');
+        return createBadRequestResponse('invalidServerName');
       }
       
       const id = crypto.randomUUID();
@@ -369,7 +354,7 @@ export async function handleAdminAPI(request, env, sys) {
     else if (data.action === 'delete') {
       const { id } = data;
       if (!id || !isValidUUID(id)) {
-        return createBadRequestResponse('服务器 ID 无效');
+        return createBadRequestResponse('invalidServerId');
       }
       
       await env.DB.prepare('DELETE FROM metrics_history WHERE server_id = ?').bind(id).run();
@@ -386,12 +371,12 @@ export async function handleAdminAPI(request, env, sys) {
     else if (data.action === 'save_order') {
       const { orders } = data;
       if (!orders || !Array.isArray(orders) || orders.length === 0) {
-        return createBadRequestResponse('缺少排序数据');
+        return createBadRequestResponse('missingSortData');
       }
       
       for (let i = 0; i < orders.length; i++) {
         if (!isValidUUID(orders[i])) {
-          return createBadRequestResponse('排序数据包含无效 ID');
+          return createBadRequestResponse('invalidSortId');
         }
         await env.DB.prepare('UPDATE servers SET sort_order = ? WHERE id = ?').bind(i, orders[i]).run();
       }
@@ -406,7 +391,7 @@ export async function handleAdminAPI(request, env, sys) {
     else if (data.action === 'edit') {
       const { id, name, server_group, price, expire_date, bandwidth, traffic_limit, traffic_calc_type, reset_day, collect_interval, report_interval, ping_mode, is_hidden } = data;
       if (!id || !isValidUUID(id)) {
-        return createBadRequestResponse('服务器 ID 无效');
+        return createBadRequestResponse('invalidServerId');
       }
       const normalizedCollectInterval = normalizeInterval(collect_interval, 0, 0);
       const normalizedReportInterval = Math.max(normalizedCollectInterval, normalizeInterval(report_interval, 60));
@@ -456,10 +441,10 @@ export async function handleAdminAPI(request, env, sys) {
         if (e.message && /no such column/i.test(e.message)) {
           console.warn('检测到数据库字段缺失，尝试添加缺失字段...');
           await addServerColumns(env.DB);
-          return createBadRequestResponse('数据库字段缺失，已添加缺失字段,请再次点击保存');
+          return createBadRequestResponse('dbColumnsAdded');
         }else{
           const errMsg = e?.message || String(e);
-          return createBadRequestResponse(errMsg || '保存失败');
+          return createBadRequestResponse(errMsg || 'serverUpdateFailed');
         }
       }
       
@@ -474,12 +459,12 @@ export async function handleAdminAPI(request, env, sys) {
     else if (data.action === 'batch_delete') {
       const { ids } = data;
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return createBadRequestResponse('请选择要删除的服务器');
+        return createBadRequestResponse('selectServersToDelete');
       }
       
       for (const id of ids) {
         if (!isValidUUID(id)) {
-          return createBadRequestResponse('包含无效的服务器 ID');
+          return createBadRequestResponse('invalidServerIdInList');
         }
       }
       
@@ -498,7 +483,7 @@ export async function handleAdminAPI(request, env, sys) {
       });
     }
     
-    return createBadRequestResponse('未知操作');
+    return createBadRequestResponse('unknownAction');
     
   } catch (e) {
     console.error('Admin API 错误:', e);

@@ -206,6 +206,7 @@ const sysConfig = ref({
   show_expire: true,
   show_bw: true,
   show_tf: true,
+  show_time: true,
   site_title: 'Server Monitor'
 })
 const regionStats = ref({})
@@ -572,6 +573,7 @@ const refreshData = async () => {
       show_expire: data.sysConfig?.show_expire ?? true,
       show_bw: data.sysConfig?.show_bw ?? true,
       show_tf: data.sysConfig?.show_tf ?? true,
+      show_time: data.sysConfig?.show_time ?? true,
       site_title: data.sysConfig?.site_title || 'Server Monitor'
     }
 

@@ -263,9 +263,14 @@
                   </div>
 
                   <div class="form-group flex-1 checkbox-item">
-                    <input type="checkbox" id="cfg_show_long_history" v-model="settings.show_long_history">
-                    <label>{{ trans.showLongHistory }} <span class="text-muted text-sm">{{ trans.showLongHistoryTip }}</span></label>
+                    <input type="checkbox" id="cfg_show_time" v-model="settings.show_time">
+                    <label>{{ trans.showTime }}</label>
                   </div>
+                </div>
+
+                <div class="form-group checkbox-item">
+                  <input type="checkbox" id="cfg_show_long_history" v-model="settings.show_long_history">
+                  <label>{{ trans.showLongHistory }} <span class="text-muted text-sm">{{ trans.showLongHistoryTip }}</span></label>
                 </div>
               </div>
 
@@ -585,9 +590,9 @@
             </div>
           </div>
           <div class="text-muted text-sm mb-3">
+            <span class="warning-icon">[i]</span> {{ trans.collectIntervalHint }}<br>
             <span class="warning-icon">[i]</span> {{ trans.trafficResetDayTip }}
           </div>
-
           <div class="form-group">
             <div class="checkbox-item no-margin">
               <input type="checkbox" v-model="editForm.is_hidden">
@@ -691,19 +696,19 @@
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.reportInterval }}</label>
               <div class="flex items-center gap-2">
-                <input type="text" readonly :value="reportInterval" class="form-input" style="width: 100px; background-color: var(--bg-secondary);">
+                <input type="text" readonly :value="reportInterval" class="form-input">
               </div>
             </div>
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.pingMode }}</label>
               <div class="flex items-center gap-2">
-                <input type="text" readonly :value="pingMode.toUpperCase()" class="form-input" style="width: 100px; background-color: var(--bg-secondary);">
+                <input type="text" readonly :value="pingMode.toUpperCase()" class="form-input">
               </div>
             </div>
             <div class="form-group flex-1">
               <label class="form-label">{{ trans.trafficResetDay }}</label>
               <div class="flex items-center gap-2">
-                <input type="text" readonly :value="resetDay" class="form-input" style="width: 100px; background-color: var(--bg-secondary);">
+                <input type="text" readonly :value="resetDay" class="form-input">
                 <button @click="openEditModalFromCopy" class="btn btn-icon btn-blue" :title="trans.edit">✏️</button>
               </div>
             </div>
@@ -769,7 +774,7 @@
               </span>
             </div>
             <div v-if="dbResult.error" class="text-red mt-2">
-              {{ dbResult.error }}
+              {{ getMessage(dbResult.error) }}
             </div>
           </div>
 
@@ -800,35 +805,32 @@
               <div class="quota-progress-list">
                 <div class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.d1RowsRead }}：{{ formatNumber(d1UsageResult.usage.today.rowsRead) }} / {{ formatNumber(d1UsageResult.usage.today.readLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.today.rowsRead, d1UsageResult.usage.today.readLimit) }}%</span>
+                    <span>{{ trans.d1RowsRead }}：{{ formatNumber(d1UsageResult.usage.today.rowsRead) }} / {{ formatNumber(5000000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.today.rowsRead, 5000000) }}%</span>
                   </div>
                   <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.rowsRead, d1UsageResult.usage.today.readLimit) + '%' }"></div>
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.rowsRead, 5000000) + '%' }"></div>
                   </div>
                 </div>
                 <div class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.d1RowsWritten }}：{{ formatNumber(d1UsageResult.usage.today.rowsWritten) }} / {{ formatNumber(d1UsageResult.usage.today.writeLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.today.rowsWritten, d1UsageResult.usage.today.writeLimit) }}%</span>
+                    <span>{{ trans.d1RowsWritten }}：{{ formatNumber(d1UsageResult.usage.today.rowsWritten) }} / {{ formatNumber(100000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.today.rowsWritten, 100000) }}%</span>
                   </div>
                   <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.rowsWritten, d1UsageResult.usage.today.writeLimit) + '%' }"></div>
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.rowsWritten, 100000) + '%' }"></div>
                   </div>
                 </div>
                 <div class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.workersRequests }}：{{ formatNumber(d1UsageResult.usage.today.workersRequests) }} / {{ formatNumber(d1UsageResult.usage.today.workersRequestLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.today.workersRequests, d1UsageResult.usage.today.workersRequestLimit) }}%</span>
+                    <span>{{ trans.workersRequests }}：{{ formatNumber(d1UsageResult.usage.today.workersRequests) }} / {{ formatNumber(100000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.today.workersRequests, 100000) }}%</span>
                   </div>
-                  <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.workersRequests, d1UsageResult.usage.today.workersRequestLimit) + '%' }"></div>
+                  <div v-if="d1UsageResult.usage.today.workersRequests" class="quota-progress-bar">
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.today.workersRequests, 100000) + '%' }"></div>
                   </div>
                 </div>
               </div>
-              <p class="text-secondary text-sm line-height-1-6 mt-3">
-                {{ trans.d1UsageDate }}：{{ d1UsageResult.usage.today.date }} (UTC+0)
-              </p>
             </div>
 
             <div class="quota-section mt-4">
@@ -836,29 +838,29 @@
               <div class="quota-progress-list">
                 <div class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.d1RowsRead }}：{{ formatNumber(d1UsageResult.usage.last24Hours.rowsRead) }} / {{ formatNumber(d1UsageResult.usage.last24Hours.readLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.rowsRead, d1UsageResult.usage.last24Hours.readLimit) }}%</span>
+                    <span>{{ trans.d1RowsRead }}：{{ formatNumber(d1UsageResult.usage.last24Hours.rowsRead) }} / {{ formatNumber(5000000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.rowsRead, 5000000) }}%</span>
                   </div>
                   <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.rowsRead, d1UsageResult.usage.last24Hours.readLimit) + '%' }"></div>
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.rowsRead, 5000000) + '%' }"></div>
                   </div>
                 </div>
                 <div class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.d1RowsWritten }}：{{ formatNumber(d1UsageResult.usage.last24Hours.rowsWritten) }} / {{ formatNumber(d1UsageResult.usage.last24Hours.writeLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.rowsWritten, d1UsageResult.usage.last24Hours.writeLimit) }}%</span>
+                    <span>{{ trans.d1RowsWritten }}：{{ formatNumber(d1UsageResult.usage.last24Hours.rowsWritten) }} / {{ formatNumber(100000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.rowsWritten, 100000) }}%</span>
                   </div>
                   <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.rowsWritten, d1UsageResult.usage.last24Hours.writeLimit) + '%' }"></div>
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.rowsWritten, 100000) + '%' }"></div>
                   </div>
                 </div>
-                <div class="quota-progress-item">
+                <div v-if="d1UsageResult.usage.last24Hours.workersRequests" class="quota-progress-item">
                   <div class="flex-justify-between text-sm mb-1">
-                    <span>{{ trans.workersRequests }}：{{ formatNumber(d1UsageResult.usage.last24Hours.workersRequests) }} / {{ formatNumber(d1UsageResult.usage.last24Hours.workersRequestLimit) }}</span>
-                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.workersRequests, d1UsageResult.usage.last24Hours.workersRequestLimit) }}%</span>
+                    <span>{{ trans.workersRequests }}：{{ formatNumber(d1UsageResult.usage.last24Hours.workersRequests) }} / {{ formatNumber(100000) }}</span>
+                    <span>{{ getUsagePercent(d1UsageResult.usage.last24Hours.workersRequests, 100000) }}%</span>
                   </div>
                   <div class="quota-progress-bar">
-                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.workersRequests, d1UsageResult.usage.last24Hours.workersRequestLimit) + '%' }"></div>
+                    <div class="quota-progress-fill" :style="{ width: getUsagePercent(d1UsageResult.usage.last24Hours.workersRequests, 100000) + '%' }"></div>
                   </div>
                 </div>
               </div>
@@ -866,7 +868,7 @@
           </div>
 
           <div v-else class="danger-box mb-4">
-            {{ d1UsageResult.error }}
+            {{ getMessage(d1UsageResult.error) }}
           </div>
 
           <div class="modal-footer flex-justify-end">
@@ -959,6 +961,7 @@ const settings = ref({
   show_expire: true,
   show_bw: true,
   show_tf: true,
+  show_time: true,
   show_long_history: false,
   tg_notify: 'false',
   expire_reminder: 'false',
@@ -1170,6 +1173,7 @@ const loadSettings = async () => {
         show_expire: settingsData.show_expire === 'true',
         show_bw: settingsData.show_bw === 'true',
         show_tf: settingsData.show_tf === 'true',
+        show_time: settingsData.show_time === 'true',
         show_long_history: settingsData.show_long_history === 'true',
         tg_notify: settingsData.tg_notify || 'false',
         expire_reminder: settingsData.expire_reminder || 'false',
@@ -1257,6 +1261,7 @@ const saveSettings = async () => {
         show_expire: settings.value.show_expire ? 'true' : 'false',
         show_bw: settings.value.show_bw ? 'true' : 'false',
         show_tf: settings.value.show_tf ? 'true' : 'false',
+        show_time: settings.value.show_time ? 'true' : 'false',
         show_long_history: settings.value.show_long_history ? 'true' : 'false',
         tg_notify: settings.value.tg_notify,
         expire_reminder: settings.value.expire_reminder,
@@ -1288,7 +1293,7 @@ const saveSettings = async () => {
         alert(getMessage(result.data.message) || 'Success')
         location.reload()
       } else {
-        alert(result.error || 'Fail')
+        alert(getMessage(result.error) || 'Fail')
       }
     } catch (e) {
       alert('Fail: ' + e.message)
@@ -1323,7 +1328,7 @@ const addServer = async () => {
         alert(getMessage(result.data.message) || 'Success')
         location.reload()
       } else {
-        alert(result.error || 'Fail')
+        alert(getMessage(result.error) || 'Fail')
       }
     } catch (e) {
       alert('Fail: ' + e.message)
@@ -1490,7 +1495,7 @@ const saveEdit = async () => {
         alert(getMessage(result.data.message) || 'Success')
         location.reload()
       } else {
-        alert(result.error || 'Fail')
+        alert(getMessage(result.error) || 'Fail')
       }
     } catch (e) {
       alert('Fail: ' + e.message)
@@ -1507,7 +1512,7 @@ const saveEdit = async () => {
         alert(getMessage(result.data.message) || 'Success')
         location.reload()
       } else {
-        alert(result.error || 'Fail')
+        alert(getMessage(result.error) || 'Fail')
       }
     } catch (e) {
       alert('Fail: ' + e.message)
