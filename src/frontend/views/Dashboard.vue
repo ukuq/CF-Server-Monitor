@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <TerminalHeader :title="sysConfig.site_title || 'Server Monitor'" />
+    <TerminalHeader :title="sysConfig.site_title || DEFAULT_SITE_TITLE" />
     
     <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -10,7 +10,7 @@
     <template v-else>
     <div class="nav-area">
       <div class="header-row">
-        <div class="site-title">$ ./{{ sysConfig.site_title || 'Server Monitor' }}</div>
+        <div class="site-title">$ ./{{ sysConfig.site_title || DEFAULT_SITE_TITLE }}</div>
         <div class="controls-group">
           <div class="view-toggle">
             <button 
@@ -198,7 +198,7 @@ import ServerCard from '../components/ServerCard.vue'
 import Footer from '../components/Footer.vue'
 import { fetchServers, fetchServersAll, formatBytes, createLiveSocket, getFlagRegionCode, getApiBases, getTrafficUsagePercent, isServerOnline } from '../utils/api.js'
 import { t, currentLang, useTranslation } from '../utils/i18n.js'
-import { TIME } from '../utils/constants'
+import { TIME, DEFAULT_SITE_TITLE } from '../utils/constants'
 import { normalizeTimestamp as normalizeMetricTimestamp } from '../utils/time.js'
 
 const servers = ref([])
@@ -210,7 +210,7 @@ const sysConfig = ref({
   show_bw: true,
   show_tf: true,
   show_time: true,
-  site_title: 'Server Monitor'
+  site_title: DEFAULT_SITE_TITLE
 })
 const regionStats = ref({})
 const currentView = ref('card')
@@ -538,7 +538,7 @@ const refreshData = async () => {
       show_bw: data.sysConfig?.show_bw ?? true,
       show_tf: data.sysConfig?.show_tf ?? true,
       show_time: data.sysConfig?.show_time ?? true,
-      site_title: data.sysConfig?.site_title || 'Server Monitor'
+      site_title: data.sysConfig?.site_title || DEFAULT_SITE_TITLE
     }
 
     drawMarkers()

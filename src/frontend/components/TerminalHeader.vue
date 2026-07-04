@@ -53,11 +53,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { t, setLanguage, getLanguage } from '../utils/i18n'
 import { useTheme } from '../composables/useTheme'
+import { DEFAULT_SITE_TITLE } from '../utils/constants'
 
 defineProps({
   title: {
     type: String,
-    default: 'Server Monitor'
+    default: DEFAULT_SITE_TITLE
   }
 })
 

@@ -1,4 +1,4 @@
-import { loadSettings } from '../utils/settings.js';
+import { loadSettings, DEFAULT_SITE_TITLE } from '../utils/settings.js';
 
 let filesCache = null;
 
@@ -48,7 +48,7 @@ function injectAppearanceSettings(html, settings) {
   let modifiedHtml = html;
 
   // 1. 更新页面标题
-  const siteTitle = escapeHtml(settings.site_title || 'Server Monitor');
+  const siteTitle = escapeHtml(settings.site_title || DEFAULT_SITE_TITLE);
   modifiedHtml = modifiedHtml.replace(/<title>.*<\/title>/, `<title>${siteTitle}</title>`);
 
   // 2. 注入 custom_head (在 </head> 标签前)

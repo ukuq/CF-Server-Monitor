@@ -1,5 +1,6 @@
 import { http, isAdminLoggedIn } from './http'
-import { getApiBases, getWsBase } from './config'
+import { getApiBases, getWsBase, hasMultipleApiBases, getTitle, getBackgroundImage } from './config'
+import { DEFAULT_SITE_TITLE } from './constants'
 import { ref } from 'vue'
 import { normalizeTimestamp } from './time.js'
 import { TIME } from './constants'
@@ -246,6 +247,10 @@ export const fetchServers = async () => {
 
 export const fetchServersAll = async () => {
   const results = await http.getAll('/api/servers')
+  const multiSite = hasMultipleApiBases()
+  const localTitle = getTitle() || DEFAULT_SITE_TITLE
+  const localBg = getBackgroundImage()
+
   const mergedData = {
     servers: [],
     stats: { total: 0, online: 0, offline: 0, globalNetRx: 0, globalNetTx: 0, globalSpeedIn: 0, globalSpeedOut: 0 },
@@ -256,7 +261,8 @@ export const fetchServersAll = async () => {
       show_bw: true,
       show_tf: true,
       show_time: true,
-      site_title: 'Server Monitor'
+      site_title: multiSite ? localTitle : DEFAULT_SITE_TITLE,
+      backgroundImage: multiSite ? localBg : ''
     }
   }
 
@@ -294,7 +300,8 @@ export const fetchServersAll = async () => {
         show_bw: data.sysConfig.show_bw ?? mergedData.sysConfig.show_bw,
         show_tf: data.sysConfig.show_tf ?? mergedData.sysConfig.show_tf,
         show_time: data.sysConfig.show_time ?? mergedData.sysConfig.show_time,
-        site_title: data.sysConfig.site_title || mergedData.sysConfig.site_title
+        site_title: multiSite ? localTitle : (data.sysConfig.site_title || mergedData.sysConfig.site_title),
+        backgroundImage: multiSite ? localBg : (data.sysConfig.backgroundImage || mergedData.sysConfig.backgroundImage || '')
       }
     }
   }

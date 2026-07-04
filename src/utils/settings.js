@@ -1,9 +1,10 @@
-const CURRENT_VERSION = 'V2.7.7';
+const CURRENT_VERSION = 'V2.7.8';
+export const DEFAULT_SITE_TITLE = 'Cloudflare Server Monitor';
 const APPEARANCE_FIELDS = ['site_title', 'custom_bg', 'custom_head', 'custom_script'];
 const SITE_FIELDS = ['is_public', 'show_price', 'show_expire', 'show_bw', 'show_tf', 'show_time', 'show_long_history', 'tg_notify', 'tg_bot_token', 'tg_chat_id', 'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'jwt_secret', 'username', 'password', 'cloudflare_account_id', 'cloudflare_token', 'custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'cleanup_skip_count', 'expire_reminder'];
 
 const defaults = {
-  site_title: 'Cloudflare Server Monitor',
+  site_title: DEFAULT_SITE_TITLE,
   custom_bg: '',
   custom_head: '',
   custom_script: '',

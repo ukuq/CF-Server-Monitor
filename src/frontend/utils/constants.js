@@ -1,3 +1,5 @@
+export const DEFAULT_SITE_TITLE = 'Cloudflare Server Monitor'
+
 export const TIME = {
   ONLINE_THRESHOLD_MS: 300000,
   POLL_INTERVAL_MS: 60000,
