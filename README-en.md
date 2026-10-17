@@ -402,6 +402,8 @@ To confirm renewal after payment, disable Auto Renewal for the server, set **Mon
 
 Confirmation opens `min(reminder days, 5)` days before expiration. Valid links can also confirm up to 7 days after expiration. Links expire after 7 days; token hashes and the original billing details are stored in the existing D1 `settings` table and cleaned up during expiration checks, with no schema migration required. Transactional checks prevent repeated clicks, concurrent submissions and different reminders for the same period from advancing the date more than once. Leave the site URL empty to keep ordinary reminders. The SQLite renewal tests require Node 22+ with `node:sqlite`; earlier Node versions skip those tests.
 
+The confirmation page supports Chinese, English and Spanish with a language switcher. Submission and refresh retain the selected language. On the same origin it follows the built-in frontend's saved preference, then the browser language, falling back to the notification language. Add `lang=zh`, `lang=en` or `lang=es` to a link to choose explicitly.
+
 ## Security Notes
 
 ### API Secret

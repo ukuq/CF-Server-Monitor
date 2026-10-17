@@ -1,5 +1,6 @@
 import { ref, reactive, computed } from 'vue'
 import { STORAGE } from './constants'
+import { createLanguageCookie } from '../../utils/language.js'
 
 const translations = reactive({
   en: {
@@ -1704,6 +1705,13 @@ export const resolveLanguagePreference = (lang) => {
 
 const currentLang = ref(resolveLanguagePreference(localStorage.getItem(LANGUAGE_STORAGE_KEY) || defaultLanguage))
 
+const syncLanguageCookie = (lang) => {
+  if (typeof document === 'undefined') return
+  try {
+    document.cookie = createLanguageCookie(lang, window.location.protocol === 'https:')
+  } catch { /* Language selection still works when cookies are unavailable. */ }
+}
+
 export const t = (key) => {
   return translations[currentLang.value]?.[key] || translations.en[key] || key
 }
@@ -1713,6 +1721,7 @@ export const setLanguage = (lang) => {
   if (translations[resolvedLang]) {
     currentLang.value = resolvedLang
     localStorage.setItem(LANGUAGE_STORAGE_KEY, resolvedLang)
+    syncLanguageCookie(resolvedLang)
     window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: resolvedLang } }))
   }
 }
@@ -1726,6 +1735,7 @@ export const applyDefaultLanguage = (lang) => {
     ? storedLanguage
     : resolveLanguagePreference(defaultLanguage)
   currentLang.value = resolvedLang
+  syncLanguageCookie(resolvedLang)
   window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: resolvedLang } }))
 }
 

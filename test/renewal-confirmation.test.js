@@ -128,6 +128,101 @@ sqliteTest('concurrent submissions using the same or different reminder tokens a
   assert.equal(f.expiration(), '2026-11-20');
 });
 
+sqliteTest('ready and confirmed pages retain the selected language through switching, submission and redirects', async t => {
+  t.mock.method(Date, 'now', () => NOW);
+  const f = fixture({ name: 'Server A' });
+  const token = await f.issue();
+  const titles = { zh: '确认服务器续费', en: 'Confirm server renewal', es: 'Confirmar renovación' };
+  const cycles = { zh: '月付', en: 'Monthly', es: 'Mensual' };
+  for (const language of ['zh', 'en', 'es']) {
+    const response = await handleRenewalConfirmation(new Request(`https://monitor.example.com/renew?token=${token}&lang=${language}`, {
+      headers: { Cookie: 'cfsm_language=zh', 'Accept-Language': 'en-US' }
+    }), { DB: f.db });
+    const html = await response.text();
+    assert.equal(response.headers.get('Content-Language'), language);
+    assert.match(response.headers.get('Set-Cookie'), new RegExp(`^cfsm_language=${language};`));
+    assert.ok(html.includes(`<html lang="${language}">`));
+    assert.ok(html.includes(`<title>${titles[language]}</title>`));
+    assert.ok(html.includes(cycles[language]));
+    assert.ok(html.includes(`action="/renew?lang=${language}"`));
+    assert.doesNotMatch(html, /undefined|<script/);
+    for (const target of ['zh', 'en', 'es']) assert.ok(html.includes(`href="/renew?token=${token}&amp;lang=${target}"`));
+    assert.equal(f.expiration(), '2026-10-20');
+  }
+  const submit = () => handleRenewalConfirmation(new Request('https://monitor.example.com/renew?lang=es', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept-Language': 'zh-CN' },
+    body: new URLSearchParams({ token })
+  }), { DB: f.db });
+  const response = await submit();
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get('Location'), `/renew?token=${token}&lang=es`);
+  for (const [language, text] of [['zh', '续费已确认'], ['en', 'Renewal confirmed'], ['es', 'Renovación confirmada']]) {
+    const url = new URL(response.headers.get('Location'), 'https://monitor.example.com');
+    url.searchParams.set('lang', language);
+    const result = await handleRenewalConfirmation(new Request(url), { DB: f.db });
+    assert.ok((await result.text()).includes(text));
+  }
+  assert.equal((await submit()).status, 303);
+  assert.equal(f.expiration(), '2026-11-20');
+});
+
+sqliteTest('renewal pages use the site cookie or browser preference before the notification language', async t => {
+  t.mock.method(Date, 'now', () => NOW);
+  const f = fixture({ name: 'Server A' }, { notification_language: 'es' });
+  const url = `https://monitor.example.com/renew?token=${await f.issue()}`;
+  for (const [headers, language] of [
+    [{ Cookie: 'cfsm_language=en', 'Accept-Language': 'zh-CN' }, 'en'],
+    [{ 'Accept-Language': 'en-US' }, 'en'],
+    [{ 'Accept-Language': 'zh-TW, en;q=0.8' }, 'zh'],
+    [{}, 'es']
+  ]) {
+    const response = await handleRenewalConfirmation(new Request(url, { headers }), { DB: f.db });
+    assert.equal(response.headers.get('Content-Language'), language);
+    assert.ok((await response.text()).includes(`<html lang="${language}">`));
+  }
+  assert.equal(f.expiration(), '2026-10-20');
+});
+
+sqliteTest('all renewal status and error pages are translated', async t => {
+  t.mock.method(Date, 'now', () => NOW);
+  const messages = {
+    en: { invalid: 'This link is invalid', expired: 'confirmation window has expired', early: 'Confirmation is available within 5 days',
+      changed: 'billing details or automatic renewal setting has changed', disabled: 'Renewal confirmation is disabled',
+      failure: 'Unable to process this request', methodNotAllowed: 'This request method is not supported' },
+    es: { invalid: 'El enlace no es válido', expired: 'confirmación ha caducado', early: 'Puede confirmar dentro de los 5 días',
+      changed: 'renovación automática han cambiado', disabled: 'La confirmación está desactivada',
+      failure: 'No se pudo procesar la solicitud', methodNotAllowed: 'Este método no está permitido' }
+  };
+  for (const [lang, states] of Object.entries(messages)) {
+    for (const [state, message] of Object.entries(states)) {
+      const f = fixture({ name: 'Server A', ...(state === 'early' ? { expire_date: '2026-10-23' } : {}) });
+      const token = state === 'invalid' ? 'bad' : await f.issue(state === 'expired' ? NOW - 7 * DAY_MS : NOW);
+      if (state === 'changed') f.sqlite.exec("UPDATE servers SET price = '20'");
+      if (state === 'disabled') f.sqlite.prepare("UPDATE settings SET value = ? WHERE key = 'site_options'")
+        .run(JSON.stringify({ ...f.settings, expire_reminder: '0' }));
+      if (state === 'failure') {
+        const prepare = f.db.prepare.bind(f.db);
+        f.db.prepare = sql => {
+          if (sql === 'SELECT value FROM settings WHERE key = ?') throw new Error('Temporary lookup failure');
+          return prepare(sql);
+        };
+      }
+      const response = await handleRenewalConfirmation(new Request(`https://monitor.example.com/renew?token=${token}&lang=${lang}`, {
+        method: state === 'methodNotAllowed' ? 'PUT' : 'GET'
+      }), { DB: f.db });
+      const html = await response.text();
+      assert.equal(response.status, ({ invalid: 410, expired: 410, failure: 503, methodNotAllowed: 405 })[state] || 200);
+      assert.ok(html.includes(message), `${lang}.${state}`);
+      assert.doesNotMatch(html, /undefined|<script/);
+      assert.equal(response.headers.get('Content-Language'), lang);
+      if (state === 'failure') assert.ok(html.includes(`class="retry" href="/renew?token=${token}&amp;lang=${lang}"`));
+      if (state === 'methodNotAllowed') assert.equal(response.headers.get('Allow'), 'GET, POST');
+      assert.equal(f.expiration(), f.server.expire_date);
+      f.sqlite.close();
+    }
+  }
+});
+
 sqliteTest('Worker serves the confirmation page on a private site with Turnstile and a custom theme', async t => {
   t.mock.method(Date, 'now', () => NOW);
   const f = fixture({}, { is_public: 'false', turnstile_enabled: 'true', theme_url: 'https://invalid.example/theme' });

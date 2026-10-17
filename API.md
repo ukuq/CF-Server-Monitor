@@ -1104,6 +1104,7 @@ https://github.com/<owner>/<theme-repo>/tree/<commit-or-branch>[/theme-subdir]
 - `{{message}}` 仅含到期详情，不拼接确认链接。续费变量在非到期通知中为空；未引用续费变量时不生成 key。变量允许两侧空格，如 `{{ renewal_url }}`。
 
 - `GET` 仅展示服务器名、原到期日、计费周期和预计新到期日，不修改日期。
+- 页面支持 `zh`、`en`、`es`；语言优先级为 URL 的 `lang` 参数、同域内置前端写入的 `cfsm_language` 偏好 cookie、`Accept-Language`、`notification_language`。页面提供语言切换，提交、结果跳转与错误页面保留语言，响应带 `Content-Language`；显式切换会写入偏好 cookie（不含 token）。
 - `POST` 使用 `application/x-www-form-urlencoded`，字段为 `token`。只在到期前 `min(expire_reminder, 5)` 天内或到期后 7 天内允许确认，以 `notification_timezone` 的日历日期为准；到期提醒或站点地址关闭后拒绝新确认。
 - 服务端同时核验 key 的 7 天有效期、服务器原到期日、计费周期、价格和自动续费状态；在 D1 事务中使用条件更新，仅顺延一个计费周期并标记 key 已使用。相同或不同提醒链接的重复提交不会重复顺延。
 - 成功及相同 key 的重复提交返回 `303` 跳转到结果页；无效或过期 key 返回 `410`；当前不允许确认或数据已变更返回 `409`；暂时无法处理返回 `503`。`GET` 展示非过期状态时返回 `200`，不支持的方法返回 `405`。
