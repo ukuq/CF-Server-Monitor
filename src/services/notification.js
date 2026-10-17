@@ -33,6 +33,7 @@ import {
   RESOURCE_ALERT_NOTIFICATION_SOFT_LIMIT
 } from '../utils/config.js';
 import { getNotificationMessages } from './notificationMessages.js';
+import { cleanupRenewalConfirmations, createRenewalConfirmationUrl } from './renewalConfirmation.js';
 
 const RESOURCE_ALERT_STATE_ACTIVE = 'active';
 const RESOURCE_ALERT_STATE_RECOVERED = 'recovered';
@@ -495,13 +496,31 @@ function buildNotificationContext(settings, msg, context = {}) {
     clients: clients.join(', '),
     count: String(count),
     message: context.message || String(msg || ''),
+    renewal_url: context.renewal_url || '',
+    renewal_links: context.renewal_links || '',
     time: context.time || now
   };
 }
 
 function formatNotificationMessage(settings, msg, context) {
-  const template = normalizeNotificationTemplate(settings?.notification_template || DEFAULT_NOTIFICATION_TEMPLATE);
+  let template = normalizeNotificationTemplate(settings?.notification_template || DEFAULT_NOTIFICATION_TEMPLATE);
+  // Omit empty renewal-only lines while keeping the surrounding template layout.
+  for (const name of ['renewal_url', 'renewal_links']) {
+    if (!context[name]) {
+      template = template.replace(new RegExp(`^[\\t ]*\\{\\{\\s*${name}\\s*\\}\\}[\\t ]*\\r?\\n(?:[\\t ]*\\r?\\n)?`, 'gm'), '');
+    }
+  }
   return renderTemplate(template, context) || String(msg || '');
+}
+
+function usesNotificationVariable(settings, name) {
+  const templates = [normalizeNotificationTemplate(settings?.notification_template)];
+  if (normalizeBooleanSetting(settings?.notification_webhook_enabled) === 'true') {
+    templates.push(settings.notification_webhook_url, settings.notification_webhook_headers,
+      normalizeNotificationWebhookBody(settings.notification_webhook_body));
+  }
+  const pattern = new RegExp(`\\{\\{\\s*${name}\\s*\\}\\}`);
+  return templates.some(template => pattern.test(String(template || '')));
 }
 
 function parseWebhookHeaders(rawHeaders, context) {
@@ -1298,8 +1317,12 @@ export async function checkExpiringServers(db, options = {}) {
     const expiringServers = [];
     const reminderDays = getExpireReminderDays(siteSettings.expire_reminder);
     const shouldNotify = reminderDays > 0 && hasNotificationTarget(siteSettings);
+    const useSingleRenewalUrl = usesNotificationVariable(siteSettings, 'renewal_url');
+    const needsRenewalUrls = useSingleRenewalUrl || usesNotificationVariable(siteSettings, 'renewal_links');
     const renewedServers = [];
     const currentDateSerial = getZonedDateSerial(now, siteSettings.notification_timezone);
+
+    await cleanupRenewalConfirmations(db, now);
 
     for (const s of allServers) {
       if (!s.expire_date) continue;
@@ -1308,9 +1331,12 @@ export async function checkExpiringServers(db, options = {}) {
       // 续费时机 = 到期日 - min(提醒天数, 5)，最长提前 5 天
       const renewal = renewExpireDateIfNeeded(s.expire_date, billingCycle, s.auto_renewal, now, Math.min(reminderDays, 5));
       if (renewal.renewed) {
-        await db.prepare(
-          'UPDATE servers SET expire_date = ?, billing_cycle = ? WHERE id = ?'
-        ).bind(renewal.expire_date, billingCycle, s.id).run();
+        const result = await db.prepare(
+          `UPDATE servers SET expire_date = ?, billing_cycle = ? WHERE id = ? AND expire_date = ?
+            AND COALESCE(auto_renewal, '0') IN ('1', 'true')
+            AND COALESCE(billing_cycle, 'month') = ? AND COALESCE(price, '') = ?`
+        ).bind(renewal.expire_date, billingCycle, s.id, s.expire_date, s.billing_cycle ?? 'month', s.price ?? '').run();
+        if (!getD1Changes(result)) continue;
         s.expire_date = renewal.expire_date;
         s.billing_cycle = billingCycle;
         renewedServers.push({ name: s.name, expire_date: renewal.expire_date });
@@ -1329,8 +1355,14 @@ export async function checkExpiringServers(db, options = {}) {
 
       debug(`[Cron] 检测到服务器 ${s.name} 到期日期 ${s.expire_date}，剩余天数 ${days} 天`);
 
-      if (days > 0 && days <= reminderDays) {
-        expiringServers.push({ name: s.name, expire_date: s.expire_date, days });
+      if (days >= 0 && days <= reminderDays) {
+        let confirmationUrl = '';
+        try {
+          if (needsRenewalUrls) confirmationUrl = await createRenewalConfirmationUrl(db, s, siteSettings, now);
+        } catch {
+          console.error('创建续费确认链接失败');
+        }
+        expiringServers.push({ name: s.name, expire_date: s.expire_date, days, confirmationUrl });
       }
     }
 
@@ -1357,19 +1389,23 @@ export async function checkExpiringServers(db, options = {}) {
     }
 
     if (expiringServers.length > 0) {
-      const serverList = expiringServers.map(s => `${s.name}  ${messages.daysLeft(s.days)}  ${s.expire_date}`).join('\n');
-      const msg = serverList;
-      debug(`[Cron] 发送到期提醒通知: ${msg}`);
-      try {
-        await sendNotification(siteSettings, msg, {
-          event: messages.events.expiring,
-          emoji: '⚠️',
-          clients: expiringServers.map(s => s.name),
-          count: expiringServers.length,
-          message: serverList
-        });
-      } catch (e) {
-        console.error('服务器到期提醒通知发送失败:', e);
+      debug(`[Cron] 发送到期提醒通知: ${expiringServers.length} 台服务器`);
+      const groups = useSingleRenewalUrl ? expiringServers.map(server => [server]) : [expiringServers];
+      for (const servers of groups) {
+        const serverList = servers.map(s => `${s.name}  ${messages.daysLeft(s.days)}  ${s.expire_date}`).join('\n');
+        try {
+          await sendNotification(siteSettings, serverList, {
+            event: messages.events.expiring,
+            emoji: '⚠️',
+            clients: servers.map(s => s.name),
+            count: servers.length,
+            message: serverList,
+            renewal_url: servers.length === 1 ? servers[0].confirmationUrl : '',
+            renewal_links: servers.filter(s => s.confirmationUrl).map(s => `${s.name}: ${s.confirmationUrl}`).join('\n')
+          });
+        } catch (e) {
+          console.error('服务器到期提醒通知发送失败:', e);
+        }
       }
     }
     return true;

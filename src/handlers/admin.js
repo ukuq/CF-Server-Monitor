@@ -14,6 +14,7 @@ import { isValidTrafficCorrection, normalizeConnectionMode, normalizePingMode, n
 import { scheduleAgentConfigChanged, scheduleAgentReportModeChanged } from '../utils/agentConfigNotify.js';
 import { detectBillingCycle, detectCurrencySymbol, normalizeBillingCycle, normalizeCurrency, normalizePrice, renewExpireDateIfNeeded } from '../utils/serverBilling.js';
 import { THEME_PREVIEW_AUTH_TTL_SECONDS } from '../utils/config.js';
+import { normalizeNotificationSiteUrl } from '../utils/settings.js';
 
 const PING_NODE_FIELDS = ['custom_ct', 'custom_cu', 'custom_cm', 'custom_bd', 'node_1', 'node_2', 'node_3', 'node_4'];
 const THEME_PREVIEW_AUTH_COOKIE = 'cfsm_theme_preview_auth';
@@ -775,6 +776,10 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
         return createBadRequestResponse('invalidThemeUrl');
       }
 
+      if (String(settings.notification_site_url || '').trim() && !normalizeNotificationSiteUrl(settings.notification_site_url)) {
+        return createBadRequestResponse('invalidNotificationSiteUrl');
+      }
+
       // 如果 turnstile_enabled 或 turnstile_login_enabled 开启，验证 turnstile_site_key 和 turnstile_secret_key 都不为空
       if (settings.turnstile_enabled === 'true' || settings.turnstile_enabled === true || settings.turnstile_login_enabled === 'true' || settings.turnstile_login_enabled === true) {
         if (!settings.turnstile_site_key || settings.turnstile_site_key.trim().length === 0) {
@@ -894,6 +899,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             siteOptions[field] = normalizeNotificationTimezone(settings[field]);
           } else if (field === 'notification_language') {
             siteOptions[field] = normalizeNotificationLanguage(settings[field]);
+          } else if (field === 'notification_site_url') {
+            siteOptions[field] = normalizeNotificationSiteUrl(settings[field]);
           } else if (field === 'expire_notification_time') {
             siteOptions[field] = normalizeExpireNotificationTime(settings[field]);
           } else if (field === 'notification_webhook_enabled') {

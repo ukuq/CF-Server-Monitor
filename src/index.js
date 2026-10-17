@@ -6,6 +6,7 @@ import { serveFrontend } from './handlers/frontend.js';
 import { handleUpdate, handleWebSocketUpgrade, handleUpdateWebSocketUpgrade } from './handlers/update.js';
 import { handleServerAPI, handleServersAPI } from './handlers/dashboard.js';
 import { handleTheme } from './handlers/theme.js';
+import { handleRenewalConfirmation } from './handlers/renewal.js';
 import { isValidThemeOptions, loadSettings, loadSiteSettings, loadAppearanceOptions, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, saveThemeOptions, setDebug, debug } from './utils/settings.js';
 import { omitNullLossProbeFields } from './handlers/dashboard.js';
 import { checkAuth, simpleAuthResponse } from './middleware/auth.js';
@@ -198,6 +199,11 @@ export default {
     
     if (method === 'OPTIONS') {
       return createOptionsResponse(request, corsAllowedOrigins);
+    }
+
+    // The standalone page authenticates with an expiring token, including on private sites.
+    if (path === '/renew') {
+      return handleRenewalConfirmation(request, env);
     }
 
     if (method === 'GET' && path === '/admin/') {

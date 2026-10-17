@@ -485,13 +485,25 @@
 
         <div class="form-row">
           <div class="form-group flex-1">
+            <label class="form-label">
+              {{ trans.notificationSiteUrl }}
+              <HelpTooltip :text="trans.notificationSiteUrlTip" />
+            </label>
+            <input type="url" name="notification_site_url" v-model.trim="settings.notification_site_url" class="form-input" placeholder="https://monitor.example.com" autocomplete="url" inputmode="url">
+            <p class="text-muted text-sm mt-2">{{ trans.renewalConfirmationTip }}</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
             <label class="form-label">{{ trans.notificationTemplate || 'Notification Template' }}</label>
             <textarea
               v-model="settings.notification_template"
               class="form-textarea"
               rows="5"
-              placeholder="{{emoji}}【CF Server Monitor】{{event}}\n\n{{message}}\n\n{{time}}"
+              placeholder="{{emoji}}【CF Server Monitor】{{event}}\n\n{{message}}\n\n{{renewal_links}}\n\n{{time}}"
             ></textarea>
+            <p class="text-muted text-sm mt-2">{{ trans.notificationTemplateVariablesTip }}</p>
           </div>
         </div>
 

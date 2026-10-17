@@ -228,6 +228,7 @@
             <input type="checkbox" v-model="editForm.auto_renewal">
             <label>
               <b>{{ trans.autoRenewal }}</b>
+              <HelpTooltip :text="trans.autoRenewalTip" />
             </label>
           </div>
         </div>

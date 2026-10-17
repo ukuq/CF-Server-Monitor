@@ -174,7 +174,7 @@ export function isEnabledFlag(value) {
   return value === true || value === 1 || value === '1' || value === 'true';
 }
 
-function parseDateOnly(value) {
+export function parseDateOnly(value) {
   const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
 
@@ -206,7 +206,7 @@ function toDateString(year, month, day) {
   ].join('-');
 }
 
-function addBillingCycleToDate(dateString, billingCycle) {
+export function addBillingCycleToDate(dateString, billingCycle) {
   const parsed = parseDateOnly(dateString);
   if (!parsed) return String(dateString || '').trim();
 

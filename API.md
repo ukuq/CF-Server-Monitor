@@ -1093,6 +1093,25 @@ https://github.com/<owner>/<theme-repo>/tree/<commit-or-branch>[/theme-subdir]
 
 ***
 
+### 2.8 `GET /renew` / `POST /renew` - 续费确认页面
+
+通知设置中的 `notification_site_url` 非空，且通知模板或启用的 Webhook 配置引用续费变量时，为关闭自动续费的服务器生成 `GET /renew?token=<随机 key>` 链接。该独立 HTML 页面适配移动端，使用 key 鉴权，无需管理员登录或 Turnstile，也不依赖主题。
+
+**通知模板变量**：
+
+- `{{renewal_links}}`：带服务器名的确认链接列表，每行一个，保留合并通知；默认通知模板包含此变量。
+- `{{renewal_url}}`：单台服务器的确认 URL；通知模板或启用的 Webhook 地址、请求头、请求体引用此变量时，到期提醒逐台发送，`client`、`count` 和 `message` 也对应单台服务器。
+- `{{message}}` 仅含到期详情，不拼接确认链接。续费变量在非到期通知中为空；未引用续费变量时不生成 key。变量允许两侧空格，如 `{{ renewal_url }}`。
+
+- `GET` 仅展示服务器名、原到期日、计费周期和预计新到期日，不修改日期。
+- `POST` 使用 `application/x-www-form-urlencoded`，字段为 `token`。只在到期前 `min(expire_reminder, 5)` 天内或到期后 7 天内允许确认，以 `notification_timezone` 的日历日期为准；到期提醒或站点地址关闭后拒绝新确认。
+- 服务端同时核验 key 的 7 天有效期、服务器原到期日、计费周期、价格和自动续费状态；在 D1 事务中使用条件更新，仅顺延一个计费周期并标记 key 已使用。相同或不同提醒链接的重复提交不会重复顺延。
+- 成功及相同 key 的重复提交返回 `303` 跳转到结果页；无效或过期 key 返回 `410`；当前不允许确认或数据已变更返回 `409`；暂时无法处理返回 `503`。`GET` 展示非过期状态时返回 `200`，不支持的方法返回 `405`。
+- key 的 SHA-256 摘要作为 `settings` 中 `renewal_confirmation:` 前缀键，记录仅保存对应服务器和计费快照；到期检测会清理过期记录，无需新增表。
+- 页面和跳转均设置 `Cache-Control: no-store` 与 `Referrer-Policy: no-referrer`。该操作只记录已完成的续费，不会向服务商付款。
+
+***
+
 ## 3. 管理端 API（鉴权）
 
 ### 3.1 `POST /admin/api` - 管理操作入口
@@ -1363,6 +1382,7 @@ Header：`X-Turnstile-Token: <token>`（当 `site_options.turnstile_enabled` 或
 - Turnstile：本次请求把 `turnstile_enabled` 或 `turnstile_login_enabled` 设为 `true` 时，必须同时提供非空 `turnstile_site_key` 与 `turnstile_secret_key`
 - 通知：规范化后的 `tg_notify` 非 `0`，或 `expire_reminder` 为 `1`-`365` 时，必须提供非空 `tg_bot_token`
 - `notification_timezone`：通知输出时间和到期提醒计划使用的 IANA 时区；缺失或非法值回退为 `UTC`
+- `notification_site_url`：续费确认页面所在的 Workers 公网 origin，如 `https://monitor.example.com`。支持 HTTP/HTTPS，不得带路径、查询、fragment 或凭据；非法值返回 `400 invalidNotificationSiteUrl`。空值关闭确认链接，不影响普通到期提醒
 - `expire_notification_time`：到期提醒每天在通知时区内执行的小时，取值 `0`-`23`；缺失或非法值回退为 `12`
 - `appearance_options` / `theme_options`：必须是非数组对象；`display_mode` 规范为 `bar` / `ring` / `table`；`preferred_theme` 规范为 `auto` / `dark` / `light`，默认 `auto`；`default_language` 规范为 `auto` / `zh` / `en`，默认 `auto`
 - `frontend_ws_timeout_minutes`：规范为 `0`-`1440` 的整数分钟；缺失或非法值回退为 `0`，即前端连接不超时
@@ -1810,7 +1830,7 @@ UUID 缺失或格式非法时返回 `400 { "error": "invalidServerId", "code": 4
 | `note`                                        | string             | 管理备注；仅管理端 `list` / 导出返回，公共接口会删除 |
 | `price`                                       | string             | 价格金额文本，保存时规范为两位小数；`0` 或 `-1` 表示免费，空白表示未设置 |
 | `billing_cycle`                               | string             | `month` / `quarter` / `half_year` / `year` / `two_years` / `three_years` / `four_years` / `five_years` |
-| `auto_renewal`                                | string `"0"`/`"1"` | 是否启用自动续费                    |
+| `auto_renewal`                                | string `"0"`/`"1"` | 是否自动顺延记录中的到期日期，不代付；关闭后可使用到期提醒中的链接确认续费 |
 | `currency`                                    | string             | 货币符号：`¥` 人民币、`$` 美元、`€` 欧元、`£` 英镑、`₽` 卢布、`₣` 法郎、`₹` 卢比、`₫` 越南盾、`฿` 泰铢 |
 | `expire_date`                                 | string             | 到期日 `YYYY-MM-DD`          |
 | `traffic_limit`                               | string             | 流量上限文本                    |
@@ -1914,6 +1934,7 @@ UUID 缺失或格式非法时返回 `400 { "error": "invalidServerId", "code": 4
   custom_bd: string,             // BGP host[:port]
   expire_reminder: string, // '0'-'365'; 0 disables expiration reminders
   notification_timezone: string, // IANA timezone；默认 UTC
+  notification_site_url: string, // Workers 公网 origin；默认空字符串，不生成续费确认链接
   expire_notification_time: string, // '0'-'23'；默认 12
   servers_optimized: 'true' | 'false'
 }

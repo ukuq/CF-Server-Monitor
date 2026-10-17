@@ -366,6 +366,8 @@ Default notification template:
 
 {{message}}
 
+{{renewal_links}}
+
 {{time}}
 ```
 
@@ -378,17 +380,27 @@ Available template variables:
 | `{{client}}` / `{{clients}}` | Server names in this notification, joined by comma for multiple servers |
 | `{{count}}` | Number of affected servers; not shown by the default template, but available for custom templates |
 | `{{message}}` | Detailed notification list |
+| `{{renewal_links}}` | Expiration reminder confirmation links, one server name and URL per line; preserves grouped notifications and is included in the default template |
+| `{{renewal_url}}` | One server's confirmation URL; referencing it sends expiration reminders per server, for custom text or Webhook buttons |
 | `{{time}}` | Send time formatted in the notification timezone |
 | `{{notification}}` | Full content after applying the notification template, usually used as Webhook `content` |
 | `{{title}}` | Fixed title `💌 Cloudflare Server Monitor` |
 
+Renewal variables have values only for expiration reminders and are empty for other events. `{{message}}` contains details without confirmation links; the template controls link placement and wording. These variables also work in Webhook URLs, headers and bodies. Temporary tokens are created only when the template or an enabled Webhook references renewal variables. Custom templates without renewal variables keep ordinary reminders.
+
 Supported alert types:
 
 - Offline alert: notify after a node stays offline for the configured delay; send recovery notice when it returns.
-- Expiration reminder: notify daily 1 to 7 days before expiration at the configured notification timezone and expiration notification time, or disable it.
+- Expiration reminder: notify daily 1 to 365 days before expiration, including the expiration day, at the configured notification timezone and hour, or disable it.
 - Resource alert: define rules for CPU, memory, disk, inbound/outbound network speed, and similar metrics.
 
 Send a test notification before saving.
+
+Auto Renewal only advances the recorded expiration date; it does not pay the provider or verify payment. Scheduled checks advance it within `min(reminder days, 5)` days before expiration. With reminders disabled, expired records are advanced; saving an expired record may also advance its date.
+
+To confirm renewal after payment, disable Auto Renewal for the server, set **Monitor site URL** in notification settings to this Workers site's public origin, such as `https://monitor.example.com` (use the Worker, not a static frontend or payment page), and include `{{renewal_links}}` or `{{renewal_url}}` in the notification template. The default already includes `{{renewal_links}}`. Links open a mobile confirmation page showing the original and next expiration dates. Only submitting the confirmation updates the date, by exactly one billing cycle.
+
+Confirmation opens `min(reminder days, 5)` days before expiration. Valid links can also confirm up to 7 days after expiration. Links expire after 7 days; token hashes and the original billing details are stored in the existing D1 `settings` table and cleaned up during expiration checks, with no schema migration required. Transactional checks prevent repeated clicks, concurrent submissions and different reminders for the same period from advancing the date more than once. Leave the site URL empty to keep ordinary reminders. The SQLite renewal tests require Node 22+ with `node:sqlite`; earlier Node versions skip those tests.
 
 ## Security Notes
 
