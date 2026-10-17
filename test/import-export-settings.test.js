@@ -119,7 +119,7 @@ test('环境相关字段不在导入导出白名单内', () => {
   for (const field of [
     'username', 'password', 'jwt_secret',
     'turnstile_enabled', 'turnstile_login_enabled', 'turnstile_site_key', 'turnstile_secret_key',
-    'ua', 'resource_alert_rules', 'csp_static', 'csp_api', 'servers_optimized'
+    'ua', 'resource_alert_rules', 'csp_static', 'csp_api', 'notification_site_url', 'servers_optimized'
   ]) {
     assert.ok(SETTINGS_EXCLUDED_FIELDS.includes(field), `${field} 应被排除`);
     assert.equal(IMPORTABLE_SITE_FIELDS.includes(field), false, `${field} 不应出现在站点白名单`);
@@ -139,6 +139,7 @@ test('export_servers 不会带出凭据、Turnstile、UA、告警规则与 CSP',
       turnstile_site_key: 'site-key',
       turnstile_secret_key: 'secret-key',
       ua: 'CustomUA/1.0',
+      notification_site_url: 'https://monitor.example.com',
       resource_alert_rules: [{ id: 'rule-1' }],
       cloudflare_account_id: 'acc',
       cloudflare_token: 'token',

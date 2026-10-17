@@ -1,7 +1,7 @@
 import { buildAuthCookie, buildClearAuthCookie, buildUaCookie, buildClearUaCookie, checkAuth, simpleAuthResponse, validateCredentials, generateToken, hasAppPasswordAccess } from '../middleware/auth.js';
 import { getLatestMetricsForAllServers } from '../database/schema.js';
 import { getAllServers, clearServersListCache } from '../utils/cache.js';
-import { clearAppearanceSettingsCache, isValidThemeOptions, isWssReportConfigured, isWssReportEnabled, normalizeBooleanSetting, normalizeDefaultLanguage, normalizeDisplayMode, normalizeExpireNotificationTime, normalizeExpireReminder, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, normalizeNotificationLanguage, normalizeNotificationTemplate, normalizeNotificationTimezone, normalizeNotificationWebhookBody, normalizeNotificationWebhookFormat, normalizeNotificationWebhookHeaders, normalizeNotificationWebhookMethod, normalizePreferredTheme, normalizeResourceAlertRules, normalizeTgNotify, normalizeWssReportHours, saveSiteOptions, saveAppearanceOptions, saveThemeOptions, validateAppPassword, validateUserAgent, SITE_FIELDS, APPEARANCE_FIELDS, IMPORTABLE_SITE_FIELDS, IMPORTABLE_APPEARANCE_FIELDS, loadSiteSettings, loadAppearanceOptions } from '../utils/settings.js';
+import { clearAppearanceSettingsCache, isValidThemeOptions, isWssReportConfigured, isWssReportEnabled, normalizeBooleanSetting, normalizeDefaultLanguage, normalizeDisplayMode, normalizeExpireNotificationTime, normalizeExpireReminder, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, normalizeNotificationLanguage, normalizeNotificationSiteUrl, normalizeNotificationTemplate, normalizeNotificationTimezone, normalizeNotificationWebhookBody, normalizeNotificationWebhookFormat, normalizeNotificationWebhookHeaders, normalizeNotificationWebhookMethod, normalizePreferredTheme, normalizeResourceAlertRules, normalizeTgNotify, normalizeWssReportHours, saveSiteOptions, saveAppearanceOptions, saveThemeOptions, validateAppPassword, validateUserAgent, SITE_FIELDS, APPEARANCE_FIELDS, IMPORTABLE_SITE_FIELDS, IMPORTABLE_APPEARANCE_FIELDS, loadSiteSettings, loadAppearanceOptions } from '../utils/settings.js';
 import { mergeMetricsIntoServer } from '../utils/metrics.js';
 import { normalizePctOrNull } from '../utils/traffic.js';
 import { verifyTurnstileToken, hashPassword } from '../utils/common.js';
@@ -888,6 +888,10 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
         return createBadRequestResponse('invalidThemeUrl');
       }
 
+      if (String(settings.notification_site_url || '').trim() && !normalizeNotificationSiteUrl(settings.notification_site_url)) {
+        return createBadRequestResponse('invalidNotificationSiteUrl');
+      }
+
       // 如果 turnstile_enabled 或 turnstile_login_enabled 开启，验证 turnstile_site_key 和 turnstile_secret_key 都不为空
       if (settings.turnstile_enabled === 'true' || settings.turnstile_enabled === true || settings.turnstile_login_enabled === 'true' || settings.turnstile_login_enabled === true) {
         if (!settings.turnstile_site_key || settings.turnstile_site_key.trim().length === 0) {
@@ -1029,6 +1033,8 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
             siteOptions[field] = normalizeNotificationTimezone(settings[field]);
           } else if (field === 'notification_language') {
             siteOptions[field] = normalizeNotificationLanguage(settings[field]);
+          } else if (field === 'notification_site_url') {
+            siteOptions[field] = normalizeNotificationSiteUrl(settings[field]);
           } else if (field === 'expire_notification_time') {
             siteOptions[field] = normalizeExpireNotificationTime(settings[field]);
           } else if (field === 'notification_webhook_enabled') {

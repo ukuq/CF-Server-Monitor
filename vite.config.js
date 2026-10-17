@@ -92,6 +92,7 @@ export default defineConfig({
       '/api': createWorkerProxy(),
       '/admin/api': createWorkerProxy(),
       '/theme': createWorkerProxy(),
+      '/renew': createWorkerProxy(),
       '/update': createWorkerProxy(),
       '/updateDatabase': createWorkerProxy(),
       '/clearHistory': createWorkerProxy(),

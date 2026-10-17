@@ -58,7 +58,8 @@ function makeDb(settings, servers = [makeServer(1)]) {
             stats.servers++;
             return { results: db.servers };
           }
-          assert.equal(sql, 'SELECT * FROM settings');
+          assert.match(sql, /^SELECT key, value FROM settings WHERE key IN \(/);
+          assert.ok(this.args.includes('tg_notify'));
           stats.legacy++;
           if (db.failLegacy) throw new Error('simulated legacy settings read failure');
           return { results: [] };

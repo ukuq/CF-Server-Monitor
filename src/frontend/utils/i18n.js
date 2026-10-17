@@ -9,6 +9,7 @@ import {
   en as defaultLocale
 } from '../locales/index.js'
 import { isSupportedLanguage, normalizeLanguagePreference, normalizeNotificationLanguagePreference } from '../../shared/languages.js'
+import { createLanguageCookie, LANGUAGE_COOKIE_NAME } from '../../utils/language.js'
 
 const LANGUAGE_STORAGE_KEY = STORAGE.LANGUAGE_PREFERENCE
 let defaultLanguage = AUTO_LANGUAGE
@@ -67,6 +68,16 @@ export const resolveLanguagePreference = (lang) => {
 
 const currentLang = ref(resolveLanguagePreference(localStorage.getItem(LANGUAGE_STORAGE_KEY) || defaultLanguage))
 
+const syncLanguageCookie = (lang) => {
+  if (typeof document === 'undefined') return
+  try {
+    const secure = window.location.protocol === 'https:'
+    const cookie = createLanguageCookie(lang, secure)
+    // The renewal page supports a subset of the frontend locales.
+    document.cookie = cookie || `${LANGUAGE_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`
+  } catch { /* Language selection still works when cookies are unavailable. */ }
+}
+
 const loadLanguage = (code) => {
   if (loadedLanguages.has(code)) return Promise.resolve(true)
   if (pendingLoads.has(code)) return pendingLoads.get(code)
@@ -101,6 +112,7 @@ export const setLanguage = async (lang) => {
   if (!loaded) return false
   currentLang.value = resolvedLang
   localStorage.setItem(LANGUAGE_STORAGE_KEY, resolvedLang)
+  syncLanguageCookie(resolvedLang)
   window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: resolvedLang } }))
   return true
 }
@@ -115,6 +127,7 @@ export const applyDefaultLanguage = async (lang) => {
   const loaded = await loadLanguage(resolvedLang)
   const nextLang = loaded ? resolvedLang : DEFAULT_LANGUAGE
   currentLang.value = nextLang
+  syncLanguageCookie(nextLang)
   window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang: nextLang } }))
   return nextLang
 }
